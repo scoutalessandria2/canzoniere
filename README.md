@@ -3,12 +3,12 @@
 ## 📥 Download
 
 L'ultima versione del canzoniere è disponibile qui:
-**[https://lussoluca.github.io/canzoniere](https://lussoluca.github.io/canzoniere)**
+**[https://canzoniereal2.alessandriascout.it/](https://canzoniereal2.alessandriascout.it/)**
 
 ## 📱 Reader (web app installabile)
 
 Per sfogliare i canti (con trasposizione, semplificazione degli accordi e ricerca) c'è una web app statica in [`reader/`](reader/), pubblicata su
-**[https://lussoluca.github.io/canzoniere/app/](https://lussoluca.github.io/canzoniere/app/)**.
+**[https://canzoniereal2.alessandriascout.it/app/](https://canzoniereal2.alessandriascout.it/app/)**.
 
 È una PWA: si apre in qualsiasi browser (telefono, tablet o computer) e si può installare sulla schermata Home per usarla anche offline.
 

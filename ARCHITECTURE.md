@@ -556,7 +556,7 @@ Notable behaviors:
 
 ### Purpose
 
-Read-only companion app for browsing the songbook from a tablet or phone (music-stand use). Published on GitHub Pages at `/canzoniere/app/`; installable from Safari via "Add to Home Screen" and fully functional offline.
+Read-only companion app for browsing the songbook from a tablet or phone (music-stand use). Published on GitHub Pages at `/app/`; installable from Safari via "Add to Home Screen" and fully functional offline.
 
 ### Tech Stack
 
@@ -565,7 +565,7 @@ Same SvelteKit 2 + Svelte 5 (runes) + Vite + TypeScript stack as the editor, wit
 - **`@sveltejs/adapter-static`** with `prerender = true` and `trailingSlash = 'always'` (`reader/src/routes/+layout.ts`): every page is prerendered at build time; no backend.
 - **Build-time data bundling** (`reader/src/lib/data.ts`): `import.meta.glob` with `eager: true` inlines every `canzoni/*/*.cho` and `canzonieri/*.txt` into the JS bundle. The app ships with its data; publishing new songs means rebuilding.
 
-`BASE_PATH` (set by CI to `/canzoniere/app`) configures `paths.base` for the GitHub Pages sub-path deployment.
+`BASE_PATH` (set by CI to `/app`) configures `paths.base` for the GitHub Pages sub-path deployment.
 
 ### Directory Structure Under `reader/src/`
 
@@ -683,7 +683,7 @@ On every push to `main` the workflow:
 
 1. Builds `canzoniere.pdf` via `make build` (Docker + ChordPro).
 2. Builds the `printer` Go tool and one PDF per `canzonieri/*.txt` (with `-dedup-chorus`).
-3. Builds the reader with `BASE_PATH=/canzoniere/app` and copies it to `public/app/`.
+3. Builds the reader with `BASE_PATH=/app` and copies it to `public/app/`.
 4. Generates a landing `index.html` linking the full PDF, the reader, and the event PDFs, then deploys `public/` to GitHub Pages.
 
 The editor is not deployed: it needs filesystem write access and runs locally only.

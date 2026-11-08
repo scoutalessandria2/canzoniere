@@ -53,7 +53,7 @@ def main() -> None:
     sha = os.environ.get("GITHUB_SHA", "")[:7]
 
     commit = (
-        f' commit <a href="https://github.com/lussoluca/canzoniere/commit/{sha}">{sha}</a> ·'
+        f' commit <a href="https://github.com/scoutalessandria2/canzoniere/commit/{sha}">{sha}</a> ·'
         if sha
         else ""
     )

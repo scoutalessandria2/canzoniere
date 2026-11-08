@@ -34,7 +34,7 @@ runs:
     - name: Build editor (online mode)
       shell: bash
       env:
-        BASE_PATH: /canzoniere/editor
+        BASE_PATH: /editor
         VITE_ONLINE: '1'
       run: cd editor && npm run build
 
@@ -57,7 +57,7 @@ runs:
     - name: Build reader
       shell: bash
       env:
-        BASE_PATH: /canzoniere/app
+        BASE_PATH: /app
       run: cd reader && npm run build
 
     - name: Vet backend

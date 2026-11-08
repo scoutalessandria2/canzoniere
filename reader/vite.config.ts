@@ -13,7 +13,7 @@ export default defineConfig({
 			// active update check, so installed PWAs pick up new deploys.
 			serviceWorker: { register: false },
 			// BASE_PATH is set by CI when the app is deployed under a sub-path
-			// (e.g. /canzoniere/app on GitHub Pages); empty for local dev.
+			// (e.g. /app on GitHub Pages); empty for local dev.
 			paths: { base: process.env.BASE_PATH ?? '' }
 		})
 	],

@@ -22,12 +22,12 @@ func loadConfig() config {
 	cfg := config{
 		port:            envOr("PORT", "8080"),
 		githubToken:     strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
-		repo:            envOr("GITHUB_REPO", "lussoluca/canzoniere"),
+		repo:            envOr("GITHUB_REPO", "scoutalessandria2/canzoniere"),
 		baseBranch:      envOr("GITHUB_BASE_BRANCH", "main"),
 		turnstileSecret: strings.TrimSpace(os.Getenv("TURNSTILE_SECRET")),
 		editorKey:       strings.TrimSpace(os.Getenv("EDITOR_KEY")),
 	}
-	for _, o := range splitAndTrim(envOr("ALLOWED_ORIGINS", "https://lussoluca.github.io")) {
+	for _, o := range splitAndTrim(envOr("ALLOWED_ORIGINS", "https://canzoniereal2.alessandriascout.it")) {
 		cfg.allowedOrigins = append(cfg.allowedOrigins, o)
 	}
 	return cfg
