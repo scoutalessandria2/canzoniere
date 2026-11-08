@@ -37,7 +37,7 @@ jobs:
 
     - name: Build reader app
       env:
-        BASE_PATH: /canzoniere/app
+        BASE_PATH: /app
       run: |
         cd reader
         npm ci
@@ -45,7 +45,7 @@ jobs:
 
     - name: Build editor app
       env:
-        BASE_PATH: /canzoniere/editor
+        BASE_PATH: /editor
         VITE_ONLINE: '1'
       run: |
         cd editor

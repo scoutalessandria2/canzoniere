@@ -55,7 +55,7 @@ export function clearDevicePauses(category: string, slug: string): void {
 
 // The online editor lives next to the reader on the same site; in dev it runs
 // on its own port, set with VITE_EDITOR_BASE.
-const EDITOR_BASE = import.meta.env.VITE_EDITOR_BASE ?? '/canzoniere/editor';
+const EDITOR_BASE = import.meta.env.VITE_EDITOR_BASE ?? '/editor';
 
 // Opens the song in the online editor with this device's pauses applied; the
 // fingerprint lets the editor refuse them if its version of the song differs.

@@ -68,19 +68,20 @@ Risposta `201`: `{"pullRequestUrl": "https://github.com/..."}`. Senza
 
 ## Configurazione (variabili d'ambiente)
 
-| Variabile            | Default                       | Uso                                       |
-| -------------------- | ----------------------------- | ----------------------------------------- |
-| `GITHUB_TOKEN`       | (obbligatoria)                | Fine-grained PAT, solo questo repo        |
-| `GITHUB_REPO`        | `lussoluca/canzoniere`        | Repository di destinazione                |
-| `GITHUB_BASE_BRANCH` | `main`                        | Branch base delle pull request            |
-| `TURNSTILE_SECRET`   | (vuota = verifica disattiva)  | Secret di Cloudflare Turnstile            |
-| `EDITOR_KEY`         | (vuota = batch disattivo)     | Password condivisa dell'editor online     |
-| `ALLOWED_ORIGINS`    | `https://lussoluca.github.io` | Origin CORS ammessi, separati da virgola  |
-| `PORT`               | `8080`                        | Porta di ascolto (impostata da Cloud Run) |
+| Variabile            | Default                                     | Uso                                       |
+| -------------------- | ------------------------------------------- | ----------------------------------------- |
+| `GITHUB_TOKEN`       | (obbligatoria)                              | Fine-grained PAT, solo questo repo        |
+| `GITHUB_REPO`        | `scoutalessandria2/canzoniere`              | Repository di destinazione                |
+| `GITHUB_BASE_BRANCH` | `main`                                      | Branch base delle pull request            |
+| `TURNSTILE_SECRET`   | (vuota = verifica disattiva)                | Secret di Cloudflare Turnstile            |
+| `EDITOR_KEY`         | (vuota = batch disattivo)                   | Password condivisa dell'editor online     |
+| `ALLOWED_ORIGINS`    | `https://canzoniereal2.alessandriascout.it` | Origin CORS ammessi, separati da virgola  |
+| `PORT`               | `8080`                                      | Porta di ascolto (impostata da Cloud Run) |
 
 Il token GitHub va creato come fine-grained PAT limitato al repository
-`lussoluca/canzoniere` con i permessi repository `Contents: Read and write`,
-`Pull requests: Read and write` e `Issues: Read and write`.
+`scoutalessandria2/canzoniere` con i permessi repository
+`Contents: Read and write`, `Pull requests: Read and write` e
+`Issues: Read and write`.
 
 Anti-abuso: rate limiting in memoria (10 POST al minuto per IP) e, quando
 `TURNSTILE_SECRET` è impostata, verifica server-side del token Cloudflare

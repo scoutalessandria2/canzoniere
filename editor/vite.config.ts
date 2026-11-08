@@ -16,7 +16,7 @@ export default defineConfig({
 			adapter: adapter({ strict: false }),
 
 			// BASE_PATH is set by CI when the app is deployed under a sub-path
-			// (e.g. /canzoniere/editor on GitHub Pages); empty for local dev.
+			// (e.g. /editor on GitHub Pages); empty for local dev.
 			paths: { base: process.env.BASE_PATH ?? '' }
 		})
 	]
