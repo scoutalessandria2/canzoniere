@@ -1,5 +1,5 @@
 name: Test stack
-description: Type-check and build the web apps, run the editor and reader E2E tests, test the backend, build the printer tool.
+description: Type-check and build the web apps, run the editor and reader E2E tests, test the rhythm engine's pure parts, test the backend, build the printer tool.
 
 runs:
   using: composite
@@ -59,6 +59,15 @@ runs:
       env:
         BASE_PATH: /app
       run: cd reader && npm run build
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+
+    - name: Test rhythm engine (pure parts)
+      shell: bash
+      run: pip install -r rhythm/requirements-test.txt && python -m pytest rhythm/tests -q
 
     - name: Vet backend
       shell: bash

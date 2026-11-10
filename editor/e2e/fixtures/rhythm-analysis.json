@@ -1,0 +1,44 @@
+{
+	"version": 1,
+	"song": "varie/ritmo_di_prova.cho",
+	"source": { "kind": "youtube", "id": "jv_i536nIvc" },
+	"analyzed": "2026-11-10",
+	"audio": "audio.wav",
+	"fingerprint": "e03d8d73",
+	"guitarShare": 0.92,
+	"status": "heard",
+	"transpose": 0,
+	"chords": ["Do", "Sol"],
+	"readings": [
+		{
+			"meter": "4/4",
+			"beatsPerBar": 4,
+			"slotsPerBeat": 2,
+			"score": 0.61,
+			"bpm": 180.2,
+			"beats": [0.2, 0.533, 0.867, 1.2, 1.533, 1.867, 2.2, 2.533],
+			"beatChord": [0, 0, 0, 0, 1, 1, 1, 1],
+			"pattern": "D.DU.UDU",
+			"chorusPattern": null,
+			"durations": [4, 4],
+			"estimated": [false, true],
+			"chordStarts": [0.2, 1.533],
+			"disagreements": [{ "chord": 1, "time": 2.2, "expected": "Sol", "heard": "Fa" }]
+		},
+		{
+			"meter": "2/4",
+			"beatsPerBar": 2,
+			"slotsPerBeat": 2,
+			"score": 0.34,
+			"bpm": 90.1,
+			"beats": [0.2, 0.867, 1.533, 2.2],
+			"beatChord": [0, 0, 1, 1],
+			"pattern": "D.DU",
+			"chorusPattern": "DUDU",
+			"durations": [2, 2],
+			"estimated": [false, true],
+			"chordStarts": [0.2, 1.533],
+			"disagreements": [{ "chord": 1, "time": 2.2, "expected": "Sol", "heard": "Fa" }]
+		}
+	]
+}

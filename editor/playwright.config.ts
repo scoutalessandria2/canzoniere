@@ -14,7 +14,9 @@ export default defineConfig({
 		timeout: 120_000,
 		env: {
 			SONGS_DIR: 'e2e/.tmp-songs',
-			SONGBOOKS_DIR: 'e2e/.tmp-songbooks'
+			SONGBOOKS_DIR: 'e2e/.tmp-songbooks',
+			RHYTHM_CACHE_DIR: 'e2e/.tmp-rhythm-cache',
+			RECORDINGS_DIR: 'e2e/.tmp-recordings'
 		}
 	}
 });

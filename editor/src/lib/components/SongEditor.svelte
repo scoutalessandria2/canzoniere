@@ -7,6 +7,7 @@
 	import { parse, serialize, type Song, type Line } from '@canzoniere/shared/chordpro';
 	import { categoryLabel } from '@canzoniere/shared/categories';
 	import { PAUSE_MAX, isTimedLine } from '@canzoniere/shared/pauses';
+	import { youtubeId, youtubeUrl } from '@canzoniere/shared/youtube';
 	import { englishChordToLatin, simplifyChord, transposeChord } from '@canzoniere/shared/chords';
 	import { slugify } from '#lib/slug.js';
 	import ChordProEditor from './ChordProEditor.svelte';
@@ -136,6 +137,32 @@
 			cancel();
 		}
 	});
+
+	// The text typed in the YouTube field while it is not a valid link; null
+	// when the field shows the song's own link. Any change to the song's link
+	// (an undo, a switch of tab) drops it.
+	let youtubeDraft: string | null = $state(null);
+	$effect(() => {
+		song.meta.youtube;
+		youtubeDraft = null;
+	});
+
+	function setYoutube(input: HTMLInputElement) {
+		const text = input.value.trim();
+		if (!text) {
+			song.meta.youtube = null;
+			youtubeDraft = null;
+			return;
+		}
+		const id = youtubeId(text);
+		if (id) {
+			song.meta.youtube = id;
+			youtubeDraft = null;
+			input.value = youtubeUrl(id);
+		} else {
+			youtubeDraft = input.value;
+		}
+	}
 
 	// The metadata form is collapsible; it starts collapsed on narrow screens
 	// to leave the room to the sheet.
@@ -460,6 +487,23 @@
 				<option value={c}>{categoryLabel(c)}</option>
 			{/each}
 		</select>
+	</label>
+	<label
+		class="youtube-field"
+		title="Link della registrazione su YouTube (anche in forma breve o con parametri). Nel file resta solo l'id del video."
+	>
+		Registrazione (YouTube)
+		<input
+			type="url"
+			placeholder="Incolla il link del video"
+			value={youtubeDraft ?? (song.meta.youtube ? youtubeUrl(song.meta.youtube) : '')}
+			onchange={(e) => setYoutube(e.currentTarget)}
+			aria-invalid={youtubeDraft !== null}
+			data-testid="meta-youtube"
+		/>
+		{#if youtubeDraft !== null}
+			<span class="field-error" data-testid="meta-youtube-error">Link YouTube non valido</span>
+		{/if}
 	</label>
 	<label
 		class="tags-field"
@@ -827,8 +871,12 @@
 	.chevron.open {
 		transform: rotate(90deg);
 	}
-	.tags-field {
+	.tags-field,
+	.youtube-field {
 		grid-column: 1 / -1;
+	}
+	.field-error {
+		color: var(--danger);
 	}
 	.meta input,
 	.meta select {
