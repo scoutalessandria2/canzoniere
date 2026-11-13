@@ -5,6 +5,9 @@
 
 	let { children } = $props();
 
+	// the sticky header's height, so a page's own sticky bar can stop below it
+	let topbarHeight = $state(0);
+
 	// marker for e2e tests: only interact after hydration
 	$effect(() => {
 		document.body.dataset.hydrated = 'true';
@@ -16,7 +19,7 @@
 	<title>Canzoniere Alessandria 2</title>
 </svelte:head>
 
-<header class="topbar">
+<header class="topbar" bind:offsetHeight={topbarHeight}>
 	<a href="{resolve('/')}" class="brand">
 		<img class="logo" src="{asset('logo.png')}" alt="" />
 		Canzoniere Alessandria 2
@@ -24,7 +27,7 @@
 	<HeaderMenu />
 </header>
 
-<main>
+<main style:--topbar-height="{topbarHeight}px">
 	{@render children()}
 </main>
 

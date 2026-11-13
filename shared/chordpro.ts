@@ -1,6 +1,8 @@
 // ChordPro parse/serialize for the visual editor.
 // Lyric lines are modeled as plain text plus chords anchored at character positions.
 
+import { YOUTUBE_ID_RE } from './youtube';
+
 export interface Chord {
 	pos: number; // character index in the lyric text where the chord is anchored
 	chord: string;
@@ -23,6 +25,7 @@ export interface SongMeta {
 	labels: string[]; // free-form search tags ({x_tag:...}), distinct from the category {tag:...}
 	columns: number | null;
 	scroll: number | null; // initial autoscroll speed for the reader ({x_scroll:N})
+	youtube: string | null; // id of the recording's YouTube video ({x_youtube:<id>})
 }
 
 export interface Song {
@@ -52,7 +55,15 @@ export function parseLyricLine(raw: string): { text: string; chords: Chord[] } {
 }
 
 export function parse(source: string): Song {
-	const meta: SongMeta = { title: '', artist: '', tags: [], labels: [], columns: null, scroll: null };
+	const meta: SongMeta = {
+		title: '',
+		artist: '',
+		tags: [],
+		labels: [],
+		columns: null,
+		scroll: null,
+		youtube: null
+	};
 	const lines: Line[] = [];
 
 	// inside a tab block every line is kept verbatim until {end_of_tab}
@@ -92,6 +103,13 @@ export function parse(source: string): Song {
 					continue;
 				case 'x_scroll':
 					meta.scroll = parseInt(value, 10) || null;
+					continue;
+				case 'x_youtube':
+					if (YOUTUBE_ID_RE.test(value)) {
+						meta.youtube = value;
+						continue;
+					}
+					lines.push({ type: 'directive', raw: raw.trim() });
 					continue;
 				case 'x_pause': {
 					const seconds = parseInt(value, 10);
@@ -187,6 +205,7 @@ export function serialize(song: Song): string {
 	for (const label of song.meta.labels) head.push(`{x_tag:${label}}`);
 	if (song.meta.columns) head.push(`{columns:${song.meta.columns}}`);
 	if (song.meta.scroll) head.push(`{x_scroll:${song.meta.scroll}}`);
+	if (song.meta.youtube) head.push(`{x_youtube:${song.meta.youtube}}`);
 
 	const body: string[] = [];
 	for (const line of song.lines) {

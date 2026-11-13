@@ -3,3 +3,10 @@ public/
 .DS_Store
 printer/printer
 .playwright-cli/
+rhythm/.cache/
+rhythm/.venv/
+rhythm/.venv-test/
+/registrazioni/
+__pycache__/
+.pytest_cache/
+.superpowers/

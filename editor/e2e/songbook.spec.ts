@@ -30,7 +30,8 @@ test('home lists categories as folders, folder opens its song list', async ({ pa
 	await expect(folders).toHaveCount(3);
 	await expect(folders.filter({ hasText: 'Reparto' })).toContainText('0 canzoni');
 	const varie = folders.filter({ hasText: 'Varie' });
-	await expect(varie).toContainText('1 canzoni');
+	// rhythm-files.spec.ts, running in parallel, briefly moves one of them to clan
+	await expect(varie).toContainText(/[34] canzoni/);
 
 	await varie.click();
 	await expect(page).toHaveURL(/\/c\/varie/);
@@ -864,7 +865,7 @@ test('chordpro tab: typing { lists the directives, the choice is written ready t
 	await expect(menu).toBeVisible();
 	await expect(options.first()).toHaveAttribute('data-name', 'x_pause');
 	await page.keyboard.type('x');
-	await expect(options).toHaveCount(3);
+	await expect(options).toHaveCount(4);
 	await expect(options.nth(0)).toHaveAttribute('aria-selected', 'true');
 	await page.keyboard.press('ArrowDown');
 	await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true');
@@ -919,7 +920,9 @@ test('chordpro tab: wrong directives are marked and listed, a click goes to the 
 		'{x_pause:5}',
 		'{start_of_chorus}',
 		'tre',
-		'{end_of_chorus}'
+		'{end_of_chorus}',
+		'{x_youtube:abc}',
+		'{x_youtube:jv_i536nIvc}'
 	];
 	await raw.fill(lines.join('\n'));
 
@@ -931,12 +934,13 @@ test('chordpro tab: wrong directives are marked and listed, a click goes to the 
 		/^Riga 9\s+Togli gli spazi prima della «\{»/,
 		/^Riga 10\s+Dopo la «\}» non va scritto altro/,
 		/^Riga 11\s+Manca la «\}» di chiusura/,
-		/^Riga 12\s+«end_of_chorus» non vuole un valore/
+		/^Riga 12\s+«end_of_chorus» non vuole un valore/,
+		/^Riga 17\s+«x_youtube» vuole l'id di un video YouTube/
 	]);
 	const highlight = page.getByTestId('raw-highlight');
-	await expect(highlight.locator('.hl-error')).toHaveCount(7);
+	await expect(highlight.locator('.hl-error')).toHaveCount(8);
 	await expect(highlight.locator('.hl-warning')).toHaveCount(1);
-	await expect(highlight.locator('.hl-custom')).toHaveCount(4);
+	await expect(highlight.locator('.hl-custom')).toHaveCount(6);
 	await expect(highlight.locator('.hl-error')).toHaveText([
 		'99',
 		'x_pausa',
@@ -944,7 +948,8 @@ test('chordpro tab: wrong directives are marked and listed, a click goes to the 
 		' {comment:a}',
 		'{comment: Rit.}due',
 		'{x_scroll:5',
-		'x'
+		'x',
+		'abc'
 	]);
 
 	// a click on the line number puts the caret at the start of that line

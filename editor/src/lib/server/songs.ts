@@ -18,7 +18,8 @@ export interface CategorySummary {
 	count: number;
 }
 
-function safeJoin(...parts: string[]): string {
+// Resolve a path inside the songs directory, refusing anything that escapes it.
+export function songsPath(...parts: string[]): string {
 	const full = path.resolve(SONGS_DIR, ...parts);
 	if (full !== SONGS_DIR && !full.startsWith(SONGS_DIR + path.sep)) {
 		throw new Error('invalid path');
@@ -68,7 +69,7 @@ export async function setCategoryOrder(order: string[]): Promise<void> {
 
 export async function categoryExists(category: string): Promise<boolean> {
 	try {
-		const stat = await fs.stat(safeJoin(category));
+		const stat = await fs.stat(songsPath(category));
 		return stat.isDirectory();
 	} catch {
 		return false;
@@ -80,7 +81,7 @@ export async function createCategory(name: string): Promise<void> {
 		throw new Error('nome categoria non valido (usa lettere minuscole, numeri e _)');
 	}
 	if (await categoryExists(name)) throw new Error(`la categoria "${name}" esiste già`);
-	await fs.mkdir(safeJoin(name));
+	await fs.mkdir(songsPath(name));
 }
 
 export async function renameCategory(oldName: string, newName: string): Promise<void> {
@@ -90,7 +91,7 @@ export async function renameCategory(oldName: string, newName: string): Promise<
 	if (!(await categoryExists(oldName))) throw new Error(`la categoria "${oldName}" non esiste`);
 	if (newName === oldName) return;
 	if (await categoryExists(newName)) throw new Error(`la categoria "${newName}" esiste già`);
-	await fs.rename(safeJoin(oldName), safeJoin(newName));
+	await fs.rename(songsPath(oldName), songsPath(newName));
 	// the {tag:...} directive mirrors the category label: rewrite it in every song
 	await retagCategory(newName);
 	// keep the rename's position in the manual order, if one is set
@@ -106,7 +107,7 @@ export async function deleteCategory(name: string, targetCategory: string): Prom
 		throw new Error(`la categoria di destinazione "${targetCategory}" non esiste`);
 	}
 	if (targetCategory === name) throw new Error('scegli una categoria di destinazione diversa');
-	const files = (await fs.readdir(safeJoin(name))).filter((f) => f.endsWith('.cho'));
+	const files = (await fs.readdir(songsPath(name))).filter((f) => f.endsWith('.cho'));
 	// guard against name collisions before moving anything
 	for (const file of files) {
 		if (await songExists(targetCategory, file)) {
@@ -116,7 +117,7 @@ export async function deleteCategory(name: string, targetCategory: string): Prom
 	for (const file of files) {
 		await moveSong(name, file, targetCategory);
 	}
-	await fs.rmdir(safeJoin(name));
+	await fs.rmdir(songsPath(name));
 	// drop the deleted category from the manual order, if one is set
 	const order = await readOrder();
 	if (order.includes(name)) {
@@ -126,7 +127,7 @@ export async function deleteCategory(name: string, targetCategory: string): Prom
 
 // Rewrite the {tag:...} of every song in a category to match its current label.
 async function retagCategory(category: string): Promise<void> {
-	const dir = safeJoin(category);
+	const dir = songsPath(category);
 	const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.cho'));
 	const label = categoryLabel(category);
 	for (const file of files) {
@@ -139,14 +140,14 @@ async function retagCategory(category: string): Promise<void> {
 export async function listCategorySummaries(): Promise<CategorySummary[]> {
 	const summaries: CategorySummary[] = [];
 	for (const category of await listCategories()) {
-		const files = (await fs.readdir(safeJoin(category))).filter((f) => f.endsWith('.cho'));
+		const files = (await fs.readdir(songsPath(category))).filter((f) => f.endsWith('.cho'));
 		summaries.push({ category, count: files.length });
 	}
 	return summaries;
 }
 
 export async function listSongsByCategory(category: string): Promise<SongListItem[]> {
-	const dir = safeJoin(category);
+	const dir = songsPath(category);
 	const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.cho'));
 	const songs: SongListItem[] = [];
 	for (const file of files) {
@@ -176,7 +177,7 @@ export async function listAllSongs(): Promise<SongListItem[]> {
 export async function listAllTags(): Promise<string[]> {
 	const tags = new Set<string>();
 	for (const category of await listCategories()) {
-		const dir = safeJoin(category);
+		const dir = songsPath(category);
 		const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.cho'));
 		for (const file of files) {
 			const { meta } = parse(await fs.readFile(path.join(dir, file), 'utf-8'));
@@ -187,14 +188,20 @@ export async function listAllTags(): Promise<string[]> {
 }
 
 export async function readSong(category: string, file: string): Promise<string> {
-	return fs.readFile(safeJoin(category, file), 'utf-8');
+	return fs.readFile(songsPath(category, file), 'utf-8');
 }
 
 export async function writeSong(category: string, file: string, content: string): Promise<void> {
 	if (!file.endsWith('.cho')) throw new Error('file must end with .cho');
-	await fs.writeFile(safeJoin(category, file), content, 'utf-8');
+	await fs.writeFile(songsPath(category, file), content, 'utf-8');
 }
 
+// The rhythm file saved next to a song: la_gioia.cho -> la_gioia.rhythm.json.
+function rhythmName(file: string): string {
+	return file.replace(/\.cho$/, '.rhythm.json');
+}
+
+// Moving a song takes its rhythm file along.
 export async function moveSong(
 	category: string,
 	file: string,
@@ -206,20 +213,28 @@ export async function moveSong(
 	if (await songExists(newCategory, file)) {
 		throw new Error(`${newCategory}/${file} esiste già`);
 	}
+	const rhythm = rhythmName(file);
+	const hasRhythm = await songExists(category, rhythm);
+	if (hasRhythm && (await songExists(newCategory, rhythm))) {
+		throw new Error(`${newCategory}/${rhythm} esiste già`);
+	}
 	// the {tag:...} directive mirrors the category: rewrite it while moving
 	const song = parse(await readSong(category, file));
 	song.meta.tags = [categoryLabel(newCategory)];
 	await writeSong(newCategory, file, serialize(song));
+	if (hasRhythm) await fs.rename(songsPath(category, rhythm), songsPath(newCategory, rhythm));
 	await deleteSong(category, file);
 }
 
+// Deleting a song deletes its rhythm file too.
 export async function deleteSong(category: string, file: string): Promise<void> {
-	await fs.unlink(safeJoin(category, file));
+	await fs.unlink(songsPath(category, file));
+	await fs.rm(songsPath(category, rhythmName(file)), { force: true });
 }
 
 export async function songExists(category: string, file: string): Promise<boolean> {
 	try {
-		await fs.access(safeJoin(category, file));
+		await fs.access(songsPath(category, file));
 		return true;
 	} catch {
 		return false;

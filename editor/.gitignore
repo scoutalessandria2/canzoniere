@@ -27,3 +27,5 @@ vite.config.ts.timestamp-*
 /playwright-report
 /e2e/.tmp-songs
 /e2e/.tmp-songbooks
+/e2e/.tmp-rhythm-cache
+/e2e/.tmp-recordings
