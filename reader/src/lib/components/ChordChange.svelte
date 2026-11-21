@@ -11,7 +11,7 @@
 		voicingMoves,
 		type StringMove
 	} from '#lib/harmony.js';
-	import { audioSupported, now, playStrum } from '#lib/audio.js';
+	import { audioSupported, now, playStrum } from '@canzoniere/shared/audio';
 
 	interface Props {
 		// Which chords the pickers offer and where they start: the primer shows

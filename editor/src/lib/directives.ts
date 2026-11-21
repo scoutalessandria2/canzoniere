@@ -3,6 +3,7 @@
 // directive line the reader, the editor or the PDF tools would misread.
 
 import { PAUSE_MAX } from '@canzoniere/shared/pauses';
+import { YOUTUBE_ID_RE } from '@canzoniere/shared/youtube';
 
 export type DirectiveKind = 'meta' | 'custom' | 'chorus' | 'comment' | 'other';
 
@@ -11,8 +12,8 @@ export interface DirectiveSpec {
 	aliases?: string[];
 	kind: DirectiveKind;
 	// none: {name}; optional: {name} or {name:label}; text: {name:value};
-	// int: {name:N}, N a whole number in [min, max]
-	value: 'none' | 'optional' | 'text' | 'int';
+	// int: {name:N}, N a whole number in [min, max]; youtube: {name:<video id>}
+	value: 'none' | 'optional' | 'text' | 'int' | 'youtube';
 	min?: number;
 	max?: number;
 	description: string;
@@ -49,6 +50,14 @@ const SPECS: DirectiveSpec[] = [
 		max: 10,
 		placeholder: '3',
 		description: 'velocità iniziale dello scorrimento (1–10)',
+		suggest: true
+	},
+	{
+		name: 'x_youtube',
+		kind: 'custom',
+		value: 'youtube',
+		placeholder: 'id del video',
+		description: 'video YouTube della registrazione (id di 11 caratteri)',
 		suggest: true
 	},
 	{
@@ -300,7 +309,7 @@ function check(
 		);
 	}
 	if (spec.value === 'none' && value !== '') return error('value', `«${spec.name}» non vuole un valore`);
-	if ((spec.value === 'text' || spec.value === 'int') && value === '')
+	if ((spec.value === 'text' || spec.value === 'int' || spec.value === 'youtube') && value === '')
 		return error('name', `«${spec.name}» vuole un valore: {${spec.name}:…}`);
 	if (spec.value === 'int') {
 		const n = Number(value);
@@ -311,6 +320,8 @@ function check(
 		)
 			return error('value', `«${spec.name}» vuole un numero intero${rangeText(spec)}`);
 	}
+	if (spec.value === 'youtube' && !YOUTUBE_ID_RE.test(value))
+		return error('value', `«${spec.name}» vuole l'id di un video YouTube (11 caratteri)`);
 	if (spec.name === 'x_pause' && !timedSeen)
 		return {
 			part: 'line',

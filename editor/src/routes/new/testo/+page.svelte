@@ -61,7 +61,8 @@
 				tags: [categoryLabel(category)],
 				labels,
 				columns,
-				scroll
+				scroll,
+				youtube: null
 			},
 			lines: toLines(text)
 		};

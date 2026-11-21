@@ -4,7 +4,7 @@
 	import ChordDiagram from '@canzoniere/shared/ChordDiagram.svelte';
 	import { transposeChord } from '@canzoniere/shared/chords';
 	import { chordVoicing, voicingMidi } from '#lib/harmony.js';
-	import { audioSupported, playStrum } from '#lib/audio.js';
+	import { audioSupported, playStrum } from '@canzoniere/shared/audio';
 
 	const ROOTS = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 

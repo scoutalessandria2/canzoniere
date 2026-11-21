@@ -4,7 +4,7 @@
 // Strings are indexed as in ChordPro's frets array: 0 = 6ª (Mi basso), 5 = 1ª
 // (Mi cantino).
 
-import { getChordDefinition } from '@canzoniere/shared/diagrams';
+import { getChordDefinition, OPEN_MIDI } from '@canzoniere/shared/diagrams';
 
 const SCALE = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 
@@ -20,9 +20,6 @@ const NOTE_SEMITONE: Record<string, number> = {
 
 // standard tuning, from the 6ª to the 1ª: Mi La Re Sol Si Mi
 const OPEN_STRINGS = [4, 9, 2, 7, 11, 4];
-
-// the same tuning as MIDI note numbers, for the synthesized playback
-const OPEN_MIDI = [40, 45, 50, 55, 59, 64];
 
 /** Name of each string, from the 6ª to the 1ª. */
 export const STRING_NAMES = ['Mi basso', 'La', 'Re', 'Sol', 'Si', 'Mi cantino'];

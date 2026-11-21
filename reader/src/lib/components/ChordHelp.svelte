@@ -8,7 +8,7 @@
 	import ChordDiagram from '@canzoniere/shared/ChordDiagram.svelte';
 	import ChordChecker from '#lib/components/ChordChecker.svelte';
 	import { chordTutorial } from '#lib/chord-tutorial.js';
-	import { audioSupported, playStrum } from '#lib/audio.js';
+	import { audioSupported, playStrum } from '@canzoniere/shared/audio';
 	import { chordVoicing, voicingMidi } from '#lib/harmony.js';
 
 	interface Props {

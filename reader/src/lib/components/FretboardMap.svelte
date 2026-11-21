@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { midiAt, noteAt, STRING_NAMES } from '#lib/harmony.js';
-	import { audioSupported, playNote } from '#lib/audio.js';
+	import { audioSupported, playNote } from '@canzoniere/shared/audio';
 
 	interface Props {
 		/** Fret to mark on each string, from the 6ª to the 1ª: -1 mutes the string. */

@@ -8,7 +8,7 @@ A web-based song management and PDF songbook generation system for Italian scout
 
 ```
 canzoniere/
-├── canzoni/                 # Song database: ChordPro .cho files organized by category
+├── canzoni/                 # Song database: ChordPro .cho files (plus their .rhythm.json) organized by category
 │   ├── branco/              # Scout troop songs ("branco" = wolf pack)
 │   ├── reparto/             # Scout troop ("reparto" = group)
 │   ├── clan/                # Scout clan songs
@@ -21,6 +21,8 @@ canzoniere/
 ├── reader/                  # SvelteKit static web app for reading songs (offline, tablet-friendly)
 ├── shared/                  # Library shared by editor and reader (ChordPro, chords, categories, diagrams)
 ├── printer/                 # Go CLI tool: converts .txt song lists → PDF
+├── rhythm/                  # Python engine: strumming rhythm of a song, heard on its recording
+├── registrazioni/           # The maintainer's own recordings (git-ignored, never shared)
 ├── chordpro.json            # ChordPro PDF rendering configuration
 ├── Makefile                 # Build & dev scripts (Docker-based ChordPro compilation)
 ├── README.md                # User-facing quickstart
@@ -29,12 +31,13 @@ canzoniere/
 
 ### Purpose of Each Directory
 
-- **canzoni/**: The core data store. Each song is a `.cho` file in ChordPro format (see §2). Filenames are slugified titles; directory structure mirrors song categories (which appear in the PDF table of contents).
+- **canzoni/**: The core data store. Each song is a `.cho` file in ChordPro format (see §2). Filenames are slugified titles; directory structure mirrors song categories (which appear in the PDF table of contents). A song whose rhythm was reviewed has a `<song>.rhythm.json` next to it (see §2.1); every tool that lists songs looks at `.cho` files only.
 - **canzonieri/**: Event songbooks. `.txt` files list song paths (relative to `canzoni/`) one per line. The Go tool (`printer/`) reads these lists and generates PDF files with selected songs, chord annotations stripped.
 - **editor/**: Interactive web app (SvelteKit) for creating, editing, and organizing songs and event songbooks.
 - **reader/**: Read-only web app (SvelteKit, fully prerendered) for browsing songs and songbooks with transposition, chord simplification, and search. Deployed to GitHub Pages under `/app/`; works offline via a service worker (see §7).
-- **shared/**: Modules used by both editor and reader: ChordPro parse/serialize, chord helpers, category helpers, guitar chord diagrams (see §6).
+- **shared/**: Modules used by both editor and reader: ChordPro parse/serialize, chord helpers, category helpers, YouTube links, the rhythm model, synthesized sound, guitar chord diagrams (see §6).
 - **printer/**: Standalone Go program that reads a `.txt` manifest and a ChordPro song directory, then renders a text-only PDF.
+- **rhythm/**: Python program the maintainer runs by hand on one song at a time (`make rhythm SONG=<category>/<song>.cho`). It listens to the song's recording (the maintainer's own in `registrazioni/`, else its YouTube video) and writes a proposal of meter, tempo, strumming pattern and chord durations to `rhythm/.cache/` (git-ignored); the editor's local review page turns it into the song's `.rhythm.json` (see §14).
 
 ---
 
@@ -52,6 +55,7 @@ The `.cho` format is a text-based markup for songs with chord annotations. It co
 {tag:Categoria}                      # Mirrors the directory (branco, chiesa, etc.)
 {x_tag:omelia}                       # Optional: free-form search tag, one directive per tag
 {columns:2}                          # Optional: layout columns in PDF
+{x_youtube:jv_i536nIvc}              # Optional: the recording's YouTube video id (11 characters)
 ```
 
 **Song Body**:
@@ -100,7 +104,7 @@ The `.cho` format is a text-based markup for songs with chord annotations. It co
 **Parser** (`shared/chordpro.ts`, `parse()` function, lines 50–102; both apps import it as `@canzoniere/shared/chordpro`):
 
 - Splits input by newlines and matches directives with regex: `^\{\s*([\w-]+)\s*(?::\s*(.*?)\s*)?\}`.
-- Extracts metadata: `{title}`, `{artist}`, `{tag}`, `{columns}`.
+- Extracts metadata: `{title}`, `{artist}`, `{tag}`, `{columns}`, `{x_youtube}` (a bare 11-character id of letters, digits, `_` and `-`; any other value leaves the line verbatim as an unknown directive).
 - Converts lyric lines: calls `parseLyricLine()` to separate text from chord anchors.
 - Preserves unknown directives verbatim (type: `directive`).
 - Trims leading/trailing empty lines from the metadata block.
@@ -115,8 +119,39 @@ The `.cho` format is a text-based markup for songs with chord annotations. It co
 **Serializer** (`serialize()`, lines 117–149):
 
 - Reverses the process: inserts chord brackets at their recorded positions before serializing.
-- Maintains metadata directives in order (title, artist, tags, columns).
+- Maintains metadata directives in order (title, artist, tags, search tags, columns, scroll, youtube).
 - Joins with newlines and ensures a trailing newline.
+
+### 2.1 The Rhythm File (`<song>.rhythm.json`)
+
+Everything about a song's strumming lives in one machine-written JSON file next to its `.cho` (`canzoni/canti_scout/la_gioia.rhythm.json`); the `.cho` keeps only the recording's link. The editor's review page is the only writer (§14); `shared/rhythm.ts` defines the types and `isRhythmFile()`, which refuses a hand-edited or truncated file.
+
+```jsonc
+{
+  "version": 1,
+  "teaching": {
+    "fingerprint": "8c1f2a3b",   // chord layout it was made for
+    "status": "heard",           // heard on the guitar | proposed (typical pattern of the meter)
+    "meter": "6/8", "beatsPerBar": 2, "slotsPerBeat": 3,
+    "bpm": 105,                  // one tempo, in the meter's beat (the dotted quarter in 6/8)
+    "pattern": "D..D..",         // one char per slot: D, U or . (rest)
+    "chorusPattern": null,       // only when the chorus is strummed differently
+    "durations": [4, 4],         // whole beats of each chord, in reading order
+    "estimated": [false, false]  // per chord: not measured on the recording
+  },
+  "recording": {
+    "source": { "kind": "youtube", "id": "jv_i536nIvc" },  // or { "kind": "file", "id": <SHA-256 of the own recording> }
+    "analyzed": "2026-11-10", "transpose": 0,
+    "beats": [0.312, 0.915],     // seconds, from a downbeat
+    "chordStarts": [0.312, null],
+    "disagreements": [{ "chord": 1, "time": 22.1, "expected": "Sol", "heard": "Fa" }]
+  }
+}
+```
+
+**Staleness** (`rhythmStaleness(file, song, fileHash)`) is reported per part. The teaching part is stale when the song's chord layout changes: `chordLayoutFingerprint()` is an FNV-1a hash of the number of chords on each timed line, so renaming or transposing chords, editing lyrics or adding pauses leave it alone, while adding, removing or moving a chord to another line changes it. The recording part is stale for the same reason, and also when the song's recording (`recordingSource(song, fileHash)`: the maintainer's own, by the SHA-256 the editor computes of `registrazioni/<category>/<song>.*`, else `{x_youtube}`) is missing or is not the one the file was made from. Python computes the same fingerprint (`rhythm/engine/cho.py`); `shared/fixtures/chord-layout.json` holds cases that both implementations are tested against.
+
+The "chords in reading order" (`songChords()`) are the chords of the lyric lines, lines top to bottom and each line left to right; `durations`, `estimated` and `chordStarts` have one entry per chord.
 
 ---
 
@@ -153,18 +188,23 @@ editor/src/
 │   ├── index.ts                                # Re-export barrel
 │   ├── slug.ts                                 # Title → filename slug converter
 │   ├── directives.ts                           # ChordPro directive catalog, autocomplete and checks
+│   ├── rhythm-model.ts                         # Rhythm review state: readings, bars, playback events, the .rhythm.json to save
+│   ├── rhythm-player.ts                        # Plays the recording and the synthesized click/strum on one audio clock
 │   ├── components/
 │   │   ├── LyricLineEditor.svelte             # Visual chord editor (see §3.3 detailed analysis)
 │   │   ├── ChordProEditor.svelte              # Highlighted textarea, directive autocomplete, problems list
-│   │   └── SongEditor.svelte                  # Parent component: tabs, metadata form, save logic
+│   │   ├── SongEditor.svelte                  # Parent component: tabs, metadata form, save logic
+│   │   ├── PatternEditor.svelte               # The bar's strumming pattern, one clickable slot per subdivision
+│   │   └── ChordDurations.svelte              # The song's chords grouped in bars, durations editable in beats
 │   ├── server/
-│   │   ├── songs.ts                            # CRUD & file I/O for .cho files
-│   │   └── songbooks.ts                        # CRUD for event songbooks (.txt lists)
+│   │   ├── songs.ts                            # CRUD & file I/O for .cho files (and their .rhythm.json)
+│   │   ├── songbooks.ts                        # CRUD for event songbooks (.txt lists)
+│   │   └── rhythm.ts                           # Saved rhythm files, the engine's cached analysis and audio
 │   ├── assets/
 │   │   └── favicon.svg
 │   └── app.d.ts (implied)
 └── routes/
-    ├── +layout.svelte                          # Global layout: header, nav, styles
+    ├── +layout.svelte                          # Global layout: header, nav, styles; `--topbar-height` for sticky bars
     ├── +page.svelte                            # Home: category folder grid
     ├── +page.server.ts                         # Load categories summary
     ├── c/[category]/                           # Category browser
@@ -176,6 +216,9 @@ editor/src/
     ├── new/                                    # Create new song
     │   ├── +page.svelte                        # Wrapper: calls SongEditor
     │   └── +page.server.ts                     # Load categories
+    ├── ritmo/[category]/[file]/                # Rhythm review (local only, never prerendered)
+    │   ├── +page.svelte                        # Listen, correct meter/tempo/pattern/durations, save
+    │   └── +page.server.ts                     # Load song, cached analysis, saved rhythm; 404 online
     ├── songbooks/                              # Songbook list & creation
     │   ├── +page.svelte
     │   ├── +page.server.ts                     # Load songbooks
@@ -186,6 +229,8 @@ editor/src/
     └── api/
         ├── songs/+server.ts                    # GET categories, POST new song
         ├── songs/[category]/[file]/+server.ts  # GET/PUT/PATCH/DELETE song
+        ├── rhythm/[category]/[file]/+server.ts # PUT the song's .rhythm.json
+        ├── rhythm/[category]/[file]/audio/+server.ts # GET the cached recording (byte ranges)
         ├── songbooks/+server.ts                # GET songbooks, POST new songbook
         └── songbooks/[name]/+server.ts         # GET/PUT/DELETE songbook
 ```
@@ -312,6 +357,8 @@ let { line = $bindable() }: Props = $props();
 - Updates `status` and navigates to the saved song's URL on success.
 - Error handling: catches and displays error messages.
 
+**Recording link**: the metadata form's "Registrazione (YouTube)" field accepts any YouTube link shape (`youtube.com/watch?v=`, `youtu.be/`, `shorts/`, with extra parameters) through `youtubeId()` from `shared/youtube.ts`, shows it as the canonical watch URL and stores the bare id in `song.meta.youtube` (serialized as `{x_youtube:<id>}`). An empty field removes the directive; a link that is not YouTube's keeps the typed text with an inline error and leaves the song's link as it was. The field is ordinary metadata, so it also works in the online editor.
+
 #### 3.4 `editor/src/lib/server/songs.ts` — Song CRUD & I/O
 
 **Environment**: `SONGS_DIR` (default `../canzoni` relative to cwd).
@@ -324,11 +371,23 @@ let { line = $bindable() }: Props = $props();
 - `listAllSongs()` (lines 65–72): Flattens all categories, sorted by title.
 - `readSong(category, file)` (lines 74–76): Reads file content as UTF-8.
 - `writeSong(category, file, content)` (lines 78–81): Writes file; validates `.cho` extension.
-- `moveSong(category, file, newCategory)` (lines 83–99): Moves file to new category, updates tag to match, deletes old.
-- `deleteSong(category, file)` (lines 101–103): Deletes file.
+- `moveSong(category, file, newCategory)` (lines 83–99): Moves file to new category, updates tag to match, deletes old; the song's `.rhythm.json` is renamed into the new category with it, and the move is refused when the target already has one. `deleteCategory()` moves its songs through `moveSong()`, so their rhythm files follow; `renameCategory()` renames the directory and needs nothing.
+- `deleteSong(category, file)` (lines 101–103): Deletes file and its `.rhythm.json`, when there is one.
 - `songExists(category, file)` (lines 105–112): Checks if song is accessible.
 
-**Security**: `safeJoin()` (lines 21–27) prevents path traversal by verifying the resolved path stays within SONGS_DIR.
+**Security**: `songsPath()` (lines 22–28) prevents path traversal by verifying the resolved path stays within SONGS_DIR; `server/rhythm.ts` uses it for the rhythm files and applies the same check to the engine's cache folder.
+
+Song lists (`listSongsByCategory()`, `listCategorySummaries()`, `listAllTags()`, `retagCategory()`) keep filtering on the `.cho` suffix, so `.rhythm.json` files never show up as songs.
+
+#### 3.4b `editor/src/lib/server/rhythm.ts` — Rhythm Files and the Engine's Cache
+
+**Environment**: `RHYTHM_CACHE_DIR` (default `../rhythm/.cache` relative to cwd; the E2E tests point it at `e2e/.tmp-rhythm-cache`), `RECORDINGS_DIR` (default `../registrazioni`; the E2E tests point it at `e2e/.tmp-recordings`).
+
+- `rhythmFileName(file)`: `la_gioia.cho` → `la_gioia.rhythm.json`.
+- `readRhythm(category, file)`: the saved rhythm, or `null` when there is none or `isRhythmFile()` refuses it. `writeRhythm()` writes it tab-indented next to the song.
+- `readAnalysis(category, file)`: `<cache>/<category>/<slug>/analysis.json` (type `RhythmAnalysis` in `rhythm-model.ts`), or `null` when it is missing, is not format version 1, or has no valid `source` (`isRhythmSource()`), no string `audio` or no `readings` array.
+- `analysisAudioPath(category, file)`: the cached audio file the analysis names, only when it exists inside that folder.
+- `ownRecording(category, file)`: the maintainer's own recording of the song, `<RECORDINGS_DIR>/<category>/<slug>.<any extension>` (hidden files skipped, the first by name when there are several): its path relative to `RECORDINGS_DIR` and the SHA-256 of its bytes, or `null`. The edit page uses the hash for the staleness notices, the review page also for the source line and the "another recording" warning.
 
 #### 3.5 `editor/src/lib/server/songbooks.ts` — Songbook CRUD
 
@@ -376,6 +435,7 @@ let { line = $bindable() }: Props = $props();
 - **`/new`**: Create song. GET: loads categories.
 - **`/songbooks`**: Songbook list & creation form. GET: `+page.server.ts` loads `listSongbooks()`.
 - **`/songbooks/[name]`**: Edit songbook. GET: loads songbook entries & `listAllSongs()` for picker.
+- **`/ritmo/[category]/[file]`**: Rhythm review of a song (local only: 404 when built online; never prerendered, rendered on every request from the engine's cache). GET: loads the song, its cached analysis, its saved rhythm and the layout fingerprint. Linked from the "Ritmo" link on `/edit/[category]/[file]`, which also carries the staleness notices (see §14), and linking back to it.
 
 #### API Endpoints
 
@@ -390,6 +450,8 @@ let { line = $bindable() }: Props = $props();
 - **`GET /api/songbooks/[name]`**: (Implied) Fetch songbook entries.
 - **`PUT /api/songbooks/[name]`**: Update songbook. Body: `{ entries: string[] }`.
 - **`DELETE /api/songbooks/[name]`**: Delete songbook.
+- **`PUT /api/rhythm/[category]/[file]`**: Save the song's `.rhythm.json`. Body: a rhythm file (§2.1); 400 when `isRhythmFile()` refuses it, 404 when the song does not exist.
+- **`GET /api/rhythm/[category]/[file]/audio`**: The recording cached by the engine, `audio/mp4` or `audio/wav`, with `Accept-Ranges: bytes` and 206/416 for range requests so the browser can seek; 404 without an analysis or audio.
 
 ### Running the Editor
 
@@ -405,6 +467,8 @@ Dev server runs at http://localhost:5173 (or next available port). Files are rea
 
 - `SONGS_DIR`: Override default `../canzoni`.
 - `SONGBOOKS_DIR`: Override default `../canzonieri`.
+- `RHYTHM_CACHE_DIR`: Override default `../rhythm/.cache`.
+- `RECORDINGS_DIR`: Override default `../registrazioni`.
 
 ---
 
@@ -540,7 +604,11 @@ Modules consumed by both web apps: framework-free TypeScript plus one Svelte com
 | `shared/chordpro.ts`            | 1–149 | ChordPro parse/serialize: `parse()`, `serialize()`, `parseLyricLine()`, `serializeLyricLine()`; `Song`, `Line`, `Chord` types |
 | `shared/chords.ts`              | 1–153 | Chord helpers: `englishChordToLatin()`, `sanitizeChord()`, `isValidChord()`, `simplifyChord()`, `transposeChord()`            |
 | `shared/categories.ts`          | 1–18  | Category helpers: `categoryLabel()`, `sortCategories()`, `isValidCategoryName()`                                              |
-| `shared/diagrams.ts`            | 1–73  | Guitar chord diagram lookup: `getChordDefinition()`, `latinChordToEnglish()`                                                  |
+| `shared/diagrams.ts`            | 1–90  | Guitar chord diagram lookup: `getChordDefinition()`, `latinChordToEnglish()`; `OPEN_MIDI` and `chordMidi()` (MIDI notes of a chord's shape) |
+| `shared/youtube.ts`             | 1–35  | YouTube links: `youtubeId()` (any link shape or bare id → the 11-character id), `youtubeUrl()`, `YOUTUBE_ID_RE`              |
+| `shared/rhythm.ts`              | 1–190 | Rhythm model: `songChords()`, `chordLayoutFingerprint()`, the `.rhythm.json` types, `isRhythmFile()`, `rhythmStaleness()`     |
+| `shared/audio.ts`               | 1–124 | Sound synthesized in the browser (plucked notes, strums, metronome click) on a shared lazy `AudioContext`: `playNote()`, `playStrum()`, `playClick()`, `audioContext()` |
+| `shared/fixtures/`              |       | Test data shared with the Python engine: `chord-layout.json` (chord layouts and their expected fingerprints)                  |
 | `shared/chord-definitions.json` |       | ChordPro's built-in guitar diagram data (guitar.json from the chordpro Docker image)                                          |
 | `shared/ChordDiagram.svelte`    | 1–208 | SVG chord diagram component; geometry mirrors ChordPro's PDF renderer                                                         |
 
@@ -549,6 +617,7 @@ Notable behaviors:
 - `simplifyChord()` reduces a chord to its basic triad: extensions dropped, diminished/half-diminished become minor, augmented becomes major, bass note after `/` removed (`Lam7` → `Lam`, `Sol/Si` → `Sol`).
 - `transposeChord()` works on Latin notes and normalizes accidentals to sharps.
 - `isValidChord()` validates chords token by token (quality words, extensions, accidentals on extensions) to reject typos like `sdg` before saving.
+- `audio.ts` bundles no samples and downloads nothing, so the reader's "Impara" page keeps working offline and the editor's rhythm review reuses the same sound; the `AudioContext` is created on the first note, which is always inside a user gesture.
 
 ---
 
@@ -765,6 +834,10 @@ make build   # Uses Docker + ChordPro
 | `editor/src/lib/slug.ts`             | 1–10  | Title → filename conversion                                                                                     |
 | `editor/src/lib/server/songs.ts`     | 1–113 | Song CRUD & file I/O                                                                                            |
 | `editor/src/lib/server/songbooks.ts` | 1–60  | Songbook CRUD                                                                                                   |
+| `editor/src/lib/server/rhythm.ts`    | 1–85  | Rhythm files and the engine's cached analysis and audio                                                         |
+| `shared/rhythm.ts`                   | 1–190 | Rhythm model, `.rhythm.json` format and staleness                                                               |
+| `shared/youtube.ts`                  | 1–35  | YouTube link → video id                                                                                         |
+| `shared/audio.ts`                    | 1–124 | Synthesized notes, strums and click                                                                             |
 | `reader/src/lib/data.ts`             | 1–100 | Build-time song/songbook database                                                                               |
 | `reader/src/lib/prefs.ts`            | 1–57  | localStorage persistence of reading prefs                                                                       |
 
@@ -787,6 +860,9 @@ make build   # Uses Docker + ChordPro
 | `editor/src/routes/new/+page.svelte`                       | New song form                               |
 | `editor/src/routes/songbooks/+page.svelte`                 | Songbook list                               |
 | `editor/src/routes/songbooks/[name]/+page.svelte`          | Songbook editor (two-panel)                 |
+| `editor/src/routes/ritmo/[category]/[file]/+page.svelte`   | Rhythm review (local only)                  |
+| `editor/src/routes/api/rhythm/[category]/[file]/+server.ts` | Save the `.rhythm.json`                     |
+| `editor/src/routes/api/rhythm/[category]/[file]/audio/+server.ts` | Serve the cached recording            |
 | `editor/src/routes/api/songs/[category]/[file]/+server.ts` | Song CRUD endpoints                         |
 | `editor/src/routes/api/songbooks/[name]/+server.ts`        | Songbook CRUD endpoints                     |
 | `reader/src/routes/+page.svelte`                           | Reader home (search, categories, songbooks) |
@@ -799,6 +875,7 @@ make build   # Uses Docker + ChordPro
 | File              | Language | Purpose                                         |
 | ----------------- | -------- | ----------------------------------------------- |
 | `printer/main.go` | Go       | Convert song lists → PDF (text-only, no chords) |
+| `rhythm/engine/`  | Python   | Strumming rhythm of a song from its recording (§14) |
 | `Makefile`        | Make     | Docker-based ChordPro build (full canzoniere)   |
 | `chordpro.json`   | JSON     | ChordPro configuration (layout, TOC, fonts)     |
 
@@ -816,8 +893,10 @@ make build   # Uses Docker + ChordPro
 │  │ /c/[cat] → Songs in category                             │   │
 │  │ /edit/[cat]/[file] → Editor (visual + raw)               │   │
 │  │ /songbooks → Event songbooks                             │   │
+│  │ /ritmo/[cat]/[file] → Rhythm review (local only)         │   │
 │  │ /api/songs/* → CRUD operations                           │   │
 │  │ /api/songbooks/* → Songbook CRUD                         │   │
+│  │ /api/rhythm/* → Save .rhythm.json, serve cached audio    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │  Shares shared/ (chordpro, chords, categories) with reader/     │
 └─────────────────────────────────────────────────────────────────┘
@@ -832,6 +911,7 @@ make build   # Uses Docker + ChordPro
          │ │  ├─ reparto/*.cho      │
          │ │  ├─ canti_scout/*.cho  │
          │ │  └─ varie/*.cho        │
+         │ │  (+ *.rhythm.json)     │
          │ │                        │
          │ └─ canzonieri/           │
          │    ├─ event_1.txt        │
@@ -850,6 +930,12 @@ make build   # Uses Docker + ChordPro
          │ · chordpro (Docker)      │
          │   Input: all .cho files  │
          │   Output: canzoniere.pdf │
+         │                          │
+         │ · rhythm/ (Python, by    │
+         │   hand, one song at a    │
+         │   time)                  │
+         │   Input: .cho + YouTube  │
+         │   Output: rhythm/.cache/ │
          └──────────────────────────┘
 
          ┌──────────────────────────────────────────┐
@@ -888,13 +974,76 @@ Each `.cho` file's `{tag:...}` directive should match its directory (enforced du
 
 ---
 
-## 14. Conclusion
+## 14. The `rhythm/` Engine and the Rhythm Review
+
+### Purpose
+
+The reader's "Impara la chitarra" page teaches strumming with three fixed patterns; what people get stuck on is the strumming of one specific song. The engine derives it from a recording: given the chords of a song's `.cho` and its YouTube link, it proposes the meter, the tempo, the strumming pattern and how long each chord lasts. The maintainer reviews the proposal by ear in the editor and saves it next to the song (§2.1). No reader UI uses the data yet.
+
+Only numbers derived from the recording are committed, never audio, and nothing reaches `canzoni/` except the review page's "Salva" and the song form's `{x_youtube}` directive.
+
+### Running it
+
+```bash
+brew install python@3.14 yt-dlp ffmpeg                 # once
+make rhythm SONG=canti_scout/la_gioia.cho              # creates rhythm/.venv/ on first use
+make rhythm SONG=canti_scout/la_gioia.cho ARGS=--reanalyze  # ARGS goes to the engine as it is
+make rhythm-test                                       # the pure parts, numpy and pytest only
+```
+
+Python 3.14 is required because PyTorch has no wheels for newer interpreters (`RHYTHM_PYTHON` picks another). Each virtual environment is rebuilt when its requirements file is newer than its `.installed` stamp. `ffmpeg` and, for YouTube recordings only, `yt-dlp` run as system commands. The Demucs and Beat This! weights (~80 MB each) download on first use. The command prints the meter (with the alternatives), the tempo, the pattern, the number of disagreements with the `.cho`, the status and the address of the review page. `--reanalyze` (`ARGS=--reanalyze`, or `python -m engine` from `rhythm/`) redoes only the analysis on the cached features, with no models. `rhythm/README.md` has the details.
+
+### Cache
+
+`rhythm/.cache/<category>/<song>/` (git-ignored, deletable at any time) holds `recording.txt` (the recording everything else comes from: `youtube:<id>` or `file:<sha256>`), the downloaded `source.*` (YouTube only), `stereo.wav`, `audio.m4a` (the AAC copy the review page plays), `stems/*.wav`, `features.json` (beats, hits, chromagram, guitar share) and `analysis.json`, the proposal the editor reads. The recording is the maintainer's own when `registrazioni/<category>/<song>.<ext>` exists (two files for one song are an error), otherwise the song's `{x_youtube}` video. The same recording reuses audio and stems; another one (a different link, an own recording added, replaced or removed) empties the folder and starts over. `analysis.json` carries the song, source, date, audio file name, layout fingerprint, guitar share, status, transposition, the song's chords in reading order and one reading per candidate meter, best first (`score`): its beats, the chord aligned to each beat, pattern, chorus pattern, chord durations, which ones are estimated, chord start times and the disagreements.
+
+### Pipeline
+
+| Module (`rhythm/engine/`) | Role |
+| ------------------------- | ---- |
+| `cli.py`        | Reads the song, manages the cache, runs the audio stage then the analysis, prints the summary in Italian |
+| `audio.py`      | The only module importing librosa, soundfile, torch, demucs and beat_this, loaded lazily: download, stereo mix, Demucs `htdemucs_6s` stems, Beat This! beats and downbeats, hits and chroma (from the guitar stem, or from the other non-vocal stems when the guitar is not audible), guitar share |
+| `cho.py`        | The `.cho` parts the engine needs, mirroring `shared/chordpro.ts`, `shared/pauses.ts` and `shared/rhythm.ts` (chord sequence, timed lines, layout fingerprint) |
+| `meter.py`      | Candidate meters (2/4, 3/4, 6/8, 4/4, 9/8, 12/8), their slot grids and their bar grids (`meter_bars()`: the tracker's bars, or halves or pairs of them) |
+| `harmony.py`    | Chord names as 12-dimensional pitch-class templates (`chord_template()`) and `same_chord()` |
+| `align.py`      | The song's chords against the recording's chroma: the transposition (`best_transposition()`), the similarity of every beat to every chord (`similarities()`), the Viterbi alignment of the `.cho`'s own chord sequence beat by beat, tolerating intros, outros, skipped sections and repeated choruses (`align()`), and the free chord recognition behind the disagreements (`recognize()`) |
+| `durations.py`  | Whole-beat teaching durations from the alignment |
+| `pattern.py`    | Core slots, the direction rule and the typical patterns |
+| `analysis.py`   | `analyze()`: features + song → the `analysis.json` dict |
+
+What the analysis decides:
+
+- **Meter**: the beat tracker's beats are split into 2, 3 or 4 parts by where the guitar hits fall; meters with that number of pulses per bar are ranked by how much the accents fall on their movements (6/8 against 3/4 is told apart this way). Because the tracker can be off by a metrical level, a tracker bar of 4/4 is also read as two bars of 2/4 and one of 2/4 as half a bar of 4/4 (consecutive bars paired); these score the same as the tracker's own bar, which comes first. All readings are kept, each with its own bar grid, so the review page can switch meter without rerunning.
+- **Chords**: the `.cho`'s chord sequence is aligned to the recording; where the recording plays another chord for at least a bar it is flagged as a disagreement, and the `.cho` stays as it is. Teaching durations are whole beats of the meter with chord changes snapped to bar lines, so bars stay complete; lines with the same chords share one reading; a chord the recording does not show lasts a bar and is marked estimated.
+- **Pattern**: a slot is core when its mean onset strength is above the mean strength halfway between slots, where the hand is in the air (`STROKE_RATIO` in `engine/pattern.py`): the reference is that silence, not the strongest slot, whose accent and chord change can make it ten times the light strokes (upstrokes above all) of the same pattern. It is computed over the verse bars for the main pattern and over the chorus bars (the bars the aligned chords place inside `{start_of_chorus}`) for the chorus pattern, which is kept only when it differs.
+- **Direction**: not heard on the audio, it follows a rule documented in `engine/pattern.py` (down on even slots and up on odd ones with 2 or 4 slots per beat; down-down-up on each beat in compound meters) and is editable slot by slot in the review.
+- **No audible guitar**: with the guitar under 30% of the instruments, the hits are read on all the non-vocal stems, drums included, and the chroma on those without drums; meter, tempo and durations are still computed, but the pattern is the meter's typical one and the status is `proposed`.
+
+### The review page
+
+`/ritmo/[category]/[file]` (§3) is local-only. With no analysis it shows the command to run. With no recording at all it says where to put the own one or to add the YouTube link. The source line names the video, or the own recording's path. The page warns when the analysis was made for another recording or for older chords of the song and then disables "Salva". It offers:
+
+- two ways to listen, from a bar that stays in view below the header while the page scrolls (it stops at the layout's `--topbar-height`): on the recording (the recording, with a click accented on the downbeat and the synthesized strum on the chords the alignment found, all scheduled on the recording's own beat times so they follow its tempo changes) or the teaching version (click and strum at the teaching tempo through the teaching durations, no recording); `rhythm-player.ts` starts the recording and schedules every sound against one `AudioContext` clock;
+- the meter among the engine's readings, the teaching tempo (prefilled with the recording's), the bar's pattern slot by slot and the chorus pattern;
+- the song's chords with their lyrics, grouped into bars by the durations, each editable with − / + (estimated ones marked until edited or confirmed), the current one highlighted while playing and a tap seeking the recording to where it was found;
+- the disagreements with the `.cho`, each seeking its spot, and the status (`heard` / `proposed`), editable in both directions.
+
+"Salva" writes the `.rhythm.json` (teaching part from the edited state, recording part from the chosen reading) through `PUT /api/rhythm/…`. The song's edit page always shows the "Ritmo" link (the review page links back with "Modifica la canzone"), "da rifare" when the teaching part is stale and a lighter "rilancia il motore" notice when only the recording part is.
+
+### Tests and CI
+
+The engine's pure modules are covered by `rhythm/tests/` on recorded fixtures, including the features recorded from «La gioia» (`tests/fixtures/la_gioia_features.json`), without models or network; the key sets of `analysis.json` are compared with `editor/e2e/fixtures/rhythm-analysis.json`, the analysis the editor's E2E tests load, and the fingerprint cases of `shared/fixtures/chord-layout.json` run against both implementations. The `test-stack` action installs only `rhythm/requirements-test.txt` (numpy and pytest) and runs `pytest rhythm/tests`; the editor, the reader, the PDF build and CI work on a machine without any of the Python audio libraries.
+
+---
+
+## 15. Conclusion
 
 The Canzoniere system is a complete song management platform designed for Italian scout groups:
 
 - **Editor** (`SvelteKit`): Full-featured web UI for creating, editing, and organizing songs with a visual chord editor.
 - **Reader** (`SvelteKit`, static): Offline-capable web app for browsing songs and songbooks on tablets, with transposition and chord simplification.
-- **Shared library** (`shared/`): Framework-agnostic ChordPro and chord logic used by both apps.
-- **Storage** (filesystem): `.cho` files in ChordPro format, organized by category.
+- **Shared library** (`shared/`): Framework-agnostic ChordPro, chord, rhythm and sound logic used by both apps.
+- **Storage** (filesystem): `.cho` files in ChordPro format, organized by category, with a `.rhythm.json` next to the songs whose rhythm was reviewed.
 - **Rendering** (Go + Docker): Two paths: event-specific PDFs via the `printer/` tool (text-only), or a comprehensive annotated canzoniere via the ChordPro CLI.
+- **Rhythm engine** (`rhythm/`, Python): Proposes meter, tempo, strumming and chord durations from a song's recording (the maintainer's own or its YouTube video), for the maintainer to review in the editor.
 - **Extensibility**: All data is text-based; integrations can easily read `.cho` files or `.txt` manifests and generate custom outputs.

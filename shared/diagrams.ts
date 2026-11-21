@@ -70,3 +70,21 @@ export function latinChordToEnglish(chord: string): string {
 export function getChordDefinition(latinChord: string): ChordDef | null {
 	return resolve(latinChordToEnglish(latinChord.trim()));
 }
+
+/** Open strings of a standard-tuned guitar as MIDI note numbers, from the 6ª to the 1ª: Mi La Re Sol Si Mi. */
+export const OPEN_MIDI = [40, 45, 50, 55, 59, 64];
+
+/**
+ * MIDI number of every string of a chord's diagram shape, from the 6ª to the
+ * 1ª; null on a muted string, and null overall when there is no diagram.
+ */
+export function chordMidi(latinChord: string): (number | null)[] | null {
+	const def = getChordDefinition(latinChord);
+	if (!def) return null;
+	return def.frets.map((fret, s) => {
+		if (fret < 0) return null;
+		// above the first position the diagram window starts at def.base
+		const at = fret > 0 && def.base > 1 ? fret + def.base - 1 : fret;
+		return OPEN_MIDI[s] + at;
+	});
+}

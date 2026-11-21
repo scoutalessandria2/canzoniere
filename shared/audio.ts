@@ -1,8 +1,9 @@
-// Sound synthesized in the browser for the learning page: plucked notes,
-// strummed chords and the metronome click. Nothing is downloaded and no sample
-// is bundled, so the page keeps working offline. The AudioContext is shared and
-// created lazily, on the first note, which is always inside a user gesture:
-// browsers refuse to start audio any other way.
+// Sound synthesized in the browser, shared by the reader's learning page and the
+// editor's rhythm review: plucked notes, strummed chords and the metronome
+// click. Nothing is downloaded and no sample is bundled, so the pages keep
+// working offline. The AudioContext is shared and created lazily, on the first
+// note, which is always inside a user gesture: browsers refuse to start audio
+// any other way.
 
 const A4_MIDI = 69;
 const A4_HZ = 440;
@@ -13,8 +14,8 @@ export function audioSupported(): boolean {
 	return typeof window !== 'undefined' && 'AudioContext' in window;
 }
 
-/** The shared context, resumed when the browser has parked it. */
-function audio(): AudioContext | null {
+/** The shared context, resumed when the browser has parked it; null where the browser has no audio. */
+export function audioContext(): AudioContext | null {
 	if (!audioSupported()) return null;
 	ctx ??= new AudioContext();
 	// Safari hands out a suspended context even inside a user gesture
@@ -46,7 +47,7 @@ export interface NoteOptions {
  * but the pitch is exact and that is what the page needs.
  */
 export function playNote(midi: number, { at = 0, gain = 0.22, duration = 1.8 }: NoteOptions = {}) {
-	const c = audio();
+	const c = audioContext();
 	if (!c) return;
 	const start = Math.max(at, c.currentTime);
 	const end = start + duration;
@@ -86,7 +87,7 @@ export function playNote(midi: number, { at = 0, gain = 0.22, duration = 1.8 }: 
  * 1ª, with nulls for the strings the shape mutes.
  */
 export function playStrum(midis: (number | null)[], down = true, at = 0, gain = 0.13) {
-	const c = audio();
+	const c = audioContext();
 	if (!c) return;
 	const start = Math.max(at, c.currentTime);
 	const sounding = midis.filter((m): m is number => m !== null);
@@ -104,7 +105,7 @@ export function playStrum(midis: (number | null)[], down = true, at = 0, gain = 
 
 /** Metronome click: a short blip, higher on the first beat of the bar. */
 export function playClick(accent = false, at = 0) {
-	const c = audio();
+	const c = audioContext();
 	if (!c) return;
 	const start = Math.max(at, c.currentTime);
 	const end = start + 0.05;
